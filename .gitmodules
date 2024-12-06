@@ -1,0 +1,3 @@
+[submodule "source_code"]
+	path = source_code
+	url = https://github.com/mevdschee/2048.c.git
