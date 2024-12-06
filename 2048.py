@@ -4,7 +4,7 @@ import sys
 
 SIZE = 4
 
-# Define color schemes
+# Define color schemes (not heavily used in this simplified version)
 COLOR_SCHEMES = {
     'original': [
         (8, 255), (1, 255), (2, 255), (3, 255),
@@ -26,15 +26,13 @@ COLOR_SCHEMES = {
     ]
 }
 
-
 def get_colors(value, scheme):
-    # value is the exponent of 2 (e.g., 1 => 2, 2 => 4)
+    # value is the exponent (1 -> 2, 2 -> 4, etc.)
     if value == 0:
         return (0, 0)
     index = min(value - 1, len(scheme) - 1)
     fg, bg = scheme[index]
     return fg, bg
-
 
 def init_board():
     board = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
@@ -42,24 +40,18 @@ def init_board():
     add_random(board)
     return board
 
-
 def add_random(board):
     empty_cells = [(x, y) for y in range(SIZE) for x in range(SIZE) if board[y][x] == 0]
     if empty_cells:
         x, y = random.choice(empty_cells)
-        # 90% chance for '2' (value=1), 10% chance for '4' (value=2)
-        board[y][x] = 1 if random.random() < 0.9 else 2
-
+        board[y][x] = 1 if random.random() < 0.9 else 2  # 90% chance 2, 10% chance 4
 
 def draw_board(stdscr, board, score, scheme_name):
     stdscr.clear()
-    scheme = COLOR_SCHEMES.get(scheme_name, COLOR_SCHEMES['original'])
     stdscr.addstr(f"2048.py {score} pts\n\n")
 
-    # We won't apply color pairs here directly based on value,
-    # because curses color settings with 256 colors differ from the original code.
-    # You can adapt if you want different foreground/background per tile.
-    # For simplicity, just print numbers.
+    # Color scheme currently not deeply integrated into drawing.
+    # Just print the numbers. You can enhance if desired.
     for y in range(SIZE):
         for x in range(SIZE):
             value = board[y][x]
@@ -70,10 +62,8 @@ def draw_board(stdscr, board, score, scheme_name):
     stdscr.addstr("\n        ←,↑,→,↓ or q        \n")
     stdscr.refresh()
 
-
 def move_line(line):
-    # This function merges a single line towards the left
-    # line: [value, value, ...], 0 means empty
+    # Merge towards left
     new_line = [v for v in line if v != 0]
     merged_line = []
     score = 0
@@ -92,27 +82,22 @@ def move_line(line):
     merged_line += [0] * (SIZE - len(merged_line))
     return merged_line, score
 
-
 def transpose(board):
-    # Transpose rows and columns
     return [list(row) for row in zip(*board)]
 
-
 def invert(board):
-    # Reverse each row (horizontal inversion)
+    # Reverse each row
     return [row[::-1] for row in board]
-
 
 def move_board(board, direction):
     moved = False
     gained_score = 0
 
-    # Use move_line which merges towards the left.
-    # For up: transpose -> move_line -> transpose back
-    # For down: transpose -> invert -> move_line -> invert -> transpose back
-    # For left: move_line on each row directly
-    # For right: invert -> move_line -> invert
-
+    # Directions:
+    # Up: transpose -> move_line -> transpose
+    # Down: transpose -> invert -> move_line -> invert -> transpose
+    # Left: move_line directly
+    # Right: invert -> move_line -> invert
     if direction == 'up':
         board = transpose(board)
         for i in range(SIZE):
@@ -155,12 +140,11 @@ def move_board(board, direction):
 
     return board, moved, gained_score
 
-
 def game_over(board):
-    # If there's an empty space, not over
+    # Check if there are empty spaces
     if any(0 in row for row in board):
         return False
-    # Check for any adjacent merges possible
+    # Check for merges
     for y in range(SIZE):
         for x in range(SIZE):
             if x < SIZE - 1 and board[y][x] == board[y][x + 1]:
@@ -169,6 +153,16 @@ def game_over(board):
                 return False
     return True
 
+def get_key_input(c):
+    # Handle keys safely:
+    # If c is an ASCII character key (0-255), we can use chr().
+    # If it's a special key like arrow keys, handle directly.
+    if c in (curses.KEY_UP, curses.KEY_DOWN, curses.KEY_LEFT, curses.KEY_RIGHT):
+        return c
+    # ASCII keys
+    if 0 <= c < 256:
+        return chr(c).lower()
+    return ''  # Unknown key outside ASCII range
 
 def main(stdscr):
     curses.curs_set(0)
@@ -178,52 +172,30 @@ def main(stdscr):
         curses.init_pair(i, curses.COLOR_WHITE, curses.COLOR_BLACK)
 
     scheme_name = 'original'
-    if len(sys.argv) == 2:
-        if sys.argv[1] in COLOR_SCHEMES:
-            scheme_name = sys.argv[1]
+    if len(sys.argv) == 2 and sys.argv[1] in COLOR_SCHEMES:
+        scheme_name = sys.argv[1]
 
     board = init_board()
     score = 0
     draw_board(stdscr, board, score, scheme_name)
 
+    # Mapping arrow keys directly:
+    directions_map = {
+        curses.KEY_UP: 'up',
+        curses.KEY_DOWN: 'down',
+        curses.KEY_LEFT: 'left',
+        curses.KEY_RIGHT: 'right'
+    }
+
     while True:
         c = stdscr.getch()
         if c == -1:
             continue
-        key = chr(c).lower() if c < 256 else ''
+        key = get_key_input(c)
 
-        if key == 'q':
-            stdscr.addstr("        QUIT? (y/n)         \n")
-            stdscr.refresh()
-            c = stdscr.getch()
-            if c != -1 and chr(c).lower() == 'y':
-                break
-            draw_board(stdscr, board, score, scheme_name)
-            continue
-
-        if key == 'r':
-            stdscr.addstr("       RESTART? (y/n)       \n")
-            stdscr.refresh()
-            c = stdscr.getch()
-            if c != -1 and chr(c).lower() == 'y':
-                board = init_board()
-                score = 0
-            draw_board(stdscr, board, score, scheme_name)
-            continue
-
-        directions = {
-            curses.KEY_UP: 'up',
-            curses.KEY_DOWN: 'down',
-            curses.KEY_LEFT: 'left',
-            curses.KEY_RIGHT: 'right',
-            ord('w'): 'up',
-            ord('s'): 'down',
-            ord('a'): 'left',
-            ord('d'): 'right'
-        }
-
-        if c in directions:
-            direction = directions[c]
+        # Handle special keys (arrows)
+        if c in directions_map:
+            direction = directions_map[c]
             board, moved, gained = move_board(board, direction)
             if moved:
                 score += gained
@@ -236,16 +208,67 @@ def main(stdscr):
                     stdscr.getch()
                     break
             else:
-                # If no move was made, still check if game is over
                 if game_over(board):
                     stdscr.addstr("         GAME OVER          \n")
                     stdscr.refresh()
                     stdscr.nodelay(0)
                     stdscr.getch()
                     break
-        else:
             continue
 
+        # Handle WASD and other ASCII keys:
+        if key in ['w', 'a', 's', 'd']:
+            if key == 'w':
+                direction = 'up'
+            elif key == 's':
+                direction = 'down'
+            elif key == 'a':
+                direction = 'left'
+            elif key == 'd':
+                direction = 'right'
+
+            board, moved, gained = move_board(board, direction)
+            if moved:
+                score += gained
+                add_random(board)
+                draw_board(stdscr, board, score, scheme_name)
+                if game_over(board):
+                    stdscr.addstr("         GAME OVER          \n")
+                    stdscr.refresh()
+                    stdscr.nodelay(0)
+                    stdscr.getch()
+                    break
+            else:
+                if game_over(board):
+                    stdscr.addstr("         GAME OVER          \n")
+                    stdscr.refresh()
+                    stdscr.nodelay(0)
+                    stdscr.getch()
+                    break
+            continue
+
+        if key == 'q':
+            stdscr.addstr("        QUIT? (y/n)         \n")
+            stdscr.refresh()
+            c2 = stdscr.getch()
+            if c2 != -1:
+                k2 = get_key_input(c2)
+                if k2 == 'y':
+                    break
+            draw_board(stdscr, board, score, scheme_name)
+            continue
+
+        if key == 'r':
+            stdscr.addstr("       RESTART? (y/n)       \n")
+            stdscr.refresh()
+            c2 = stdscr.getch()
+            if c2 != -1:
+                k2 = get_key_input(c2)
+                if k2 == 'y':
+                    board = init_board()
+                    score = 0
+            draw_board(stdscr, board, score, scheme_name)
+            continue
 
 if __name__ == '__main__':
     curses.wrapper(main)
